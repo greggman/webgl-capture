@@ -451,8 +451,8 @@ Capture.prototype.dump = function() {
   lines.push("</script>");
   lines.push("</body>\n</html>")
   lines.push("");
-  console.log(lines.join("\n"));
   this.data = [];
+  return lines.join("\n");
 };
 
 Capture.prototype.handle_uniform = function(name, args) {

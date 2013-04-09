@@ -32,7 +32,7 @@ Example
          captured = true;
          if (gl.capture) {
            gl.capture.end();
-           gl.capture.dump();
+           console.log(gl.capture.dump());
          }
        }
        requestAnimationFrame(renderLoop);
