@@ -26,6 +26,8 @@ Example
        // capture the first frame.
        if (!captured) {
          captured = true;
+
+         // only call this code if it exists.
          if (gl.capture) {
            gl.capture.end();
            gl.capture.insertInElement(document.body);
