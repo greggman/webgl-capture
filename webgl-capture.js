@@ -14,6 +14,17 @@ var log = function(msg) {
   }
 };
 
+/**
+ * Needed because 'arguments' is not really an array :-(
+ */
+var copySubArray = function(src, start, len) {
+  var dst = [];
+  for (var ii = 0; ii < len; ++ii) {
+    dst.push(src[start + ii]);
+  }
+  return dst;
+};
+
 var getResourceName = function(resource) {
   if (resource) {
     var info = resource.__capture_info__;
@@ -67,78 +78,84 @@ var glValidEnumContexts = {
 
   // Generic setters and getters
 
-  'enable': { 0:true },
-  'disable': { 0:true },
-  'getParameter': { 0:true },
+  'enable': {1: { 0:true }},
+  'disable': {1: { 0:true }},
+  'getParameter': {1: { 0:true }},
 
   // Rendering
 
-  'drawArrays': { 0:true },
-  'drawElements': { 0:true, 2:true },
+  'drawArrays': {3:{ 0:true }},
+  'drawElements': {4:{ 0:true, 2:true }},
 
   // Shaders
 
-  'createShader': { 0:true },
-  'getShaderParameter': { 1:true },
-  'getProgramParameter': { 1:true },
-  'getShaderPrecisionFormat': { 0: true, 1:true },
+  'createShader': {1: { 0:true }},
+  'getShaderParameter': {2: { 1:true }},
+  'getProgramParameter': {2: { 1:true }},
+  'getShaderPrecisionFormat': {2: { 0: true, 1:true }},
 
   // Vertex attributes
 
-  'getVertexAttrib': { 1:true },
-  'vertexAttribPointer': { 2:true },
+  'getVertexAttrib': {2: { 1:true }},
+  'vertexAttribPointer': {6: { 2:true }},
 
   // Textures
 
-  'bindTexture': { 0:true },
-  'activeTexture': { 0:true },
-  'getTexParameter': { 0:true, 1:true },
-  'texParameterf': { 0:true, 1:true },
-  'texParameteri': { 0:true, 1:true, 2:true },
-  'texImage2D': { 0:true, 2:true, 6:true, 7:true },
-  'texSubImage2D': { 0:true, 6:true, 7:true },
-  'copyTexImage2D': { 0:true, 2:true },
-  'copyTexSubImage2D': { 0:true },
-  'generateMipmap': { 0:true },
+  'bindTexture': {2: { 0:true }},
+  'activeTexture': {1: { 0:true }},
+  'getTexParameter': {2: { 0:true, 1:true }},
+  'texParameterf': {3: { 0:true, 1:true }},
+  'texParameteri': {3: { 0:true, 1:true, 2:true }},
+  'texImage2D': {
+     9: { 0:true, 2:true, 6:true, 7:true },
+     6: { 0:true, 2:true, 3:true, 4:true },
+  },
+  'texSubImage2D': {
+    9: { 0:true, 6:true, 7:true },
+    7: { 0:true, 4:true, 5:true },
+  },
+  'copyTexImage2D': {8: { 0:true, 2:true }},
+  'copyTexSubImage2D': {8: { 0:true }},
+  'generateMipmap': {1: { 0:true }},
 
   // Buffer objects
 
-  'bindBuffer': { 0:true },
-  'bufferData': { 0:true, 2:true },
-  'bufferSubData': { 0:true },
-  'getBufferParameter': { 0:true, 1:true },
+  'bindBuffer': {2: { 0:true }},
+  'bufferData': {3: { 0:true, 2:true }},
+  'bufferSubData': {3: { 0:true }},
+  'getBufferParameter': {2: { 0:true, 1:true }},
 
   // Renderbuffers and framebuffers
 
-  'pixelStorei': { 0:true, 1:true },
-  'readPixels': { 4:true, 5:true },
-  'bindRenderbuffer': { 0:true },
-  'bindFramebuffer': { 0:true },
-  'checkFramebufferStatus': { 0:true },
-  'framebufferRenderbuffer': { 0:true, 1:true, 2:true },
-  'framebufferTexture2D': { 0:true, 1:true, 2:true },
-  'getFramebufferAttachmentParameter': { 0:true, 1:true, 2:true },
-  'getRenderbufferParameter': { 0:true, 1:true },
-  'renderbufferStorage': { 0:true, 1:true },
+  'pixelStorei': {2: { 0:true, 1:true }},
+  'readPixels': {7: { 4:true, 5:true }},
+  'bindRenderbuffer': {2: { 0:true }},
+  'bindFramebuffer': {2: { 0:true }},
+  'checkFramebufferStatus': {1: { 0:true }},
+  'framebufferRenderbuffer': {4: { 0:true, 1:true, 2:true }},
+  'framebufferTexture2D': {5: { 0:true, 1:true, 2:true }},
+  'getFramebufferAttachmentParameter': {3: { 0:true, 1:true, 2:true }},
+  'getRenderbufferParameter': {2: { 0:true, 1:true }},
+  'renderbufferStorage': {4: { 0:true, 1:true }},
 
   // Frame buffer operations (clear, blend, depth test, stencil)
 
-  'clear': { 0:true },
-  'depthFunc': { 0:true },
-  'blendFunc': { 0:true, 1:true },
-  'blendFuncSeparate': { 0:true, 1:true, 2:true, 3:true },
-  'blendEquation': { 0:true },
-  'blendEquationSeparate': { 0:true, 1:true },
-  'stencilFunc': { 0:true },
-  'stencilFuncSeparate': { 0:true, 1:true },
-  'stencilMaskSeparate': { 0:true },
-  'stencilOp': { 0:true, 1:true, 2:true },
-  'stencilOpSeparate': { 0:true, 1:true, 2:true, 3:true },
+  'clear': {1: { 0:true }},
+  'depthFunc': {1: { 0:true }},
+  'blendFunc': {2: { 0:true, 1:true }},
+  'blendFuncSeparate': {4: { 0:true, 1:true, 2:true, 3:true }},
+  'blendEquation': {1: { 0:true }},
+  'blendEquationSeparate': {2: { 0:true, 1:true }},
+  'stencilFunc': {3: { 0:true }},
+  'stencilFuncSeparate': {4: { 0:true, 1:true }},
+  'stencilMaskSeparate': {2: { 0:true }},
+  'stencilOp': {3: { 0:true, 1:true, 2:true }},
+  'stencilOpSeparate': {4: { 0:true, 1:true, 2:true, 3:true }},
 
   // Culling
 
-  'cullFace': { 0:true },
-  'frontFace': { 0:true },
+  'cullFace': {1: { 0:true }},
+  'frontFace': {1: { 0:true }},
 };
 
 var glEnums = {};
@@ -155,11 +172,27 @@ var typedArrays = [
   { name: "Float64Array",      ctor: Float64Array, },
 ];
 
+var elements = [
+  { name: "image", ctor: Image },
+  { name: "image", ctor: HTMLImageElement },
+  { name: "canvas", ctor: HTMLCanvasElement },
+  { name: "video", ctor: HTMLVideoElement },
+  { name: "imagedata", ctor: ImageData },
+];
+
 var eolRE = /\n/g;
 var crRE = /\r/g;
 var quoteRE = /"/g;
 
-var glValueToString = function(functionName, argumentIndex, value) {
+var glEnumToString = function(value) {
+  if (glEnums[value]) {
+    return "gl." + glEnums[value];
+  } else {
+    return "0x" + value.toString(16);
+  }
+};
+
+var glValueToString = function(functionName, numArgs, argumentIndex, value) {
   if (value === undefined) {
     return 'undefined';
   } else if (value === null) {
@@ -167,11 +200,10 @@ var glValueToString = function(functionName, argumentIndex, value) {
   } else if (typeof(value) === 'number') {
     var funcInfo = glValidEnumContexts[functionName];
     if (funcInfo !== undefined) {
-      if (funcInfo[argumentIndex]) {
-        if (glEnums[value]) {
-          return "gl." + glEnums[value];
-        } else {
-          return "0x" + value.toString(16);
+      var funcInfo = funcInfo[numArgs];
+      if (funcInfo !== undefined) {
+        if (funcInfo[argumentIndex]) {
+          return glEnumToString(value);
         }
       }
     }
@@ -179,16 +211,22 @@ var glValueToString = function(functionName, argumentIndex, value) {
     return '"' + value.toString().replace(eolRE, "\\n").replace(crRE, "\\n").replace(quoteRE, "\\\"") + '"';
   } else if (value.length !== undefined) {
     var values = [];
-    for (var ii = 0; ii < value.length; ++ii) {
-      values.push(value[ii].toString());
+    var step = 32;
+    for (var jj = 0; jj < value.length; jj += step) {
+      var end = Math.min(jj + step, value.length);
+      var sub = [];
+      for (var ii = jj; ii < end; ++ii) {
+        sub.push(value[ii].toString());
+      }
+      values.push(sub.join(", "));
     }
     for (var ii = 0; ii < typedArrays.length; ++ii) {
       var type = typedArrays[ii];
       if (value instanceof type.ctor) {
-        return "new " + type.name + "([" + values.join(", ") + "])";
+        return "new " + type.name + "([\n" + values.join(",\n") + "\n])";
       }
     }
-    return "[" + values.join(", ") + "]";
+    return "\n[\n" + values.join(",\n") + "\n]";
   } else if (typeof(value) == 'object') {
     var funcInfo = glResourceArgs[functionName];
     if (funcInfo) {
@@ -196,10 +234,16 @@ var glValueToString = function(functionName, argumentIndex, value) {
         return getResourceName(value);
       }
     } else {
+      for (var ii = 0; ii < elements.length; ++ii) {
+        var type = elements[ii];
+        if (value instanceof type.ctor) {
+          return type.name + "<-----------";
+        }
+      }
       var values = [];
       for (var key in value) {
         if (value.hasOwnProperty(key)) {
-          values.push('"' + key + '":' + glValueToString("", -1, value[key]));
+          values.push('"' + key + '":' + glValueToString("", 0, -1, value[key]));
         }
       }
       return "{\n    " + values.join(",\n    ") + "}";
@@ -214,9 +258,46 @@ var glArgsToString = function(functionName, args) {
   }
   var values = [];
   for (var ii = 0; ii < args.length; ++ii) {
-    values.push(glValueToString(functionName, ii, args[ii]));
+    values.push(glValueToString(functionName, args.length, ii, args[ii]));
   }
   return values.join(", ");
+};
+
+var Dumper = function() {
+  this.lines = [];
+};
+
+Dumper.prototype.addLine = function(str) {
+  this.lines.push(str);
+};
+
+Dumper.prototype.dump = function() {
+  return this.lines.join("\n");
+};
+
+var Inserter = function(element) {
+  this.element = element;
+  this.root = document.createElement("div");
+  this.root.style = "";
+};
+
+Inserter.prototype.addLine = function(str) {
+  var pre = document.createElement("pre");
+  pre.innerText = str;
+  this.root.appendChild(pre);
+};
+
+Inserter.prototype.finish = function() {
+  var style = this.root.style;
+  style.position = "absolute";
+  style.zIndex = 100000;
+  style.left = "0px";
+  style.top = "0px";
+  style.width = "100%";
+  style.height = "100%";
+  style.overflow = "scroll";
+  style.backgroundColor = "rgba(0,0,0,0.9)";
+  this.element.appendChild(this.root);
 };
 
 var Capture = function(ctx, opt_options) {
@@ -228,7 +309,11 @@ var Capture = function(ctx, opt_options) {
   this.currentProgram = null;
   this.programs = [];
   this.data = [];
+  this.numImages = 0;
+  this.images = {};
   this.shaderSources = [];
+  var gl = this.ctx;
+  this.fb = gl.createFramebuffer();
   this.shaderBySource = {
   };
   this.ids = {
@@ -413,46 +498,92 @@ Capture.prototype.end = function() {
   this.capture = false;
 };
 
+
+Capture.prototype.insertInElement = function(element) {
+  var inserter = new Inserter(element);
+  this.generate(inserter);
+  inserter.finish();
+};
+
 Capture.prototype.dump = function() {
-  var lines = [];
-  lines.push("<html>\n<body>");
+  var dumper = new Dumper();
+  this.generate(dumper);
+  return dumper.dump("\n");
+};
+
+Capture.prototype.generate = function(out) {
+  out.addLine("<html>\n<body>");
 
   // dump shaders to script tags
   this.shaderSources.forEach(function(source, index) {
-    lines.push('<!-- =================================[ shader' + index + ' ]================== -->');
-    lines.push('<script id="shader' + index + '" type="shader">');
-    lines.push(source);
-    lines.push('</script>');
+    out.addLine('<!-- =================================[ shader' + index + ' ]================== -->');
+    out.addLine('<script id="shader' + index + '" type="shader">');
+    out.addLine(source);
+    out.addLine('</script>');
   });
 
-  lines.push('<!-- =============================[ code ]======================================== -->');
-  lines.push('<canvas id="c" width="' + this.ctx.canvas.width + '" height="' + this.ctx.canvas.height + '"></canvas>')
-  lines.push("<script>");
+  out.addLine('<!-- =============================[ code ]======================================== -->');
+  out.addLine('<canvas id="c" width="' + this.ctx.canvas.width + '" height="' + this.ctx.canvas.height + '"></canvas>')
+  out.addLine("<script>");
 
   if (this.helper) {
-    lines.push("function setUniform(gl, type, program, name) {     ");
-    lines.push("  var loc = gl.getUniformLocation(program, name);  ");
-    lines.push("  var args = [loc];                                ");
-    lines.push("  for (var ii = 4; ii < arguments.length; ++ii) {  ");
-    lines.push("    args.push(arguments[ii]);                      ");
-    lines.push("  }                                                ");
-    lines.push("  gl[type].apply(gl, args);                        ");
-    lines.push("}                                                  ");
+    out.addLine("function setUniform(gl, type, program, name) {     ");
+    out.addLine("  var loc = gl.getUniformLocation(program, name);  ");
+    out.addLine("  var args = [loc];                                ");
+    out.addLine("  for (var ii = 4; ii < arguments.length; ++ii) {  ");
+    out.addLine("    args.push(arguments[ii]);                      ");
+    out.addLine("  }                                                ");
+    out.addLine("  gl[type].apply(gl, args);                        ");
+    out.addLine("}                                                  ");
   }
 
-  lines.push('var canvas = document.getElementById("c");');
-  lines.push('var gl = canvas.getContext("experimental-webgl", ' + glValueToString("getContextAttributes", -1, this.ctx.getContextAttributes()) + ')');
-  for (var key in this.ids) {
-    lines.push("var " + key + ' = [];');
+  if (this.numImages) {
+    out.addLine("var imageUrls = [                    ");
+    for (var key in this.images) {
+      out.addLine('  "' + key + '",');
+    }
+    out.addLine("];")
+    out.addLine("var images = { };                    ");
+    out.addLine("function loadImages() {              ");
+    out.addLine("  var count = 0;                     ");
+    out.addLine("  var checkFinished = function() {   ");
+    out.addLine("    --count;                         ");
+    out.addLine("    if (!count) {                    ");
+    out.addLine("      render();                      ");
+    out.addLine("    }                                ");
+    out.addLine("  };                                 ");
+    out.addLine("  imageUrls.forEach(function(url) {  ");
+    out.addLine("    ++count;                         ");
+    out.addLine("    var img = new Image();           ");
+    out.addLine("    img.onload = checkFinished;      ");
+    out.addLine("    img.src = url;                   ");
+    out.addLine("    images[url] = img;               ");
+    out.addLine("  });                                ");
+    out.addLine("}                                    ");
   }
+
+  out.addLine('var canvas = document.getElementById("c");');
+  out.addLine('var gl = canvas.getContext("experimental-webgl", ' + glValueToString("getContextAttributes", 0, -1, this.ctx.getContextAttributes()) + ');');
+  for (var key in this.ids) {
+    out.addLine("var " + key + ' = [];');
+  }
+  out.addLine("function render() {");
   this.data.forEach(function(func) {
-    lines.push(func());
+    out.addLine(func());
   });
-  lines.push("</script>");
-  lines.push("</body>\n</html>")
-  lines.push("");
+  out.addLine("}");
+
+  if (this.numImages) {
+    out.addLine("loadImages();");
+  } else {
+    out.addLine("render();");
+  }
+
+  out.addLine("</script>");
+  out.addLine("</body>\n</html>")
+  out.addLine("");
+
   this.data = [];
-  return lines.join("\n");
 };
 
 Capture.prototype.handle_uniform = function(name, args) {
@@ -494,6 +625,65 @@ Capture.prototype.handle_create = function(name, args) {
   };
   this.addData(getResourceName(resource) + ' = gl.' + name + '(' + glArgsToString(name, args) + ');');
   return resource;
+};
+
+Capture.prototype.doTexImage2DForImage = function(name, image, args) {
+  var gl = this.ctx;
+  var fb = this.fb;
+  var newArgs = copySubArray(args, 0, args.length - 1);
+  newArgs.push(null);
+  var argStr = glArgsToString(name, newArgs);
+  argStr = argStr.replace('null', 'images["' + image.src + '"]');
+  this.images[image.src] = true;
+  ++this.numImages;
+  this.addData('gl.' + name + '(' + argStr + ');');
+//  var oldFb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
+//  var texBinding = target == gl.TEXTURE_2D ? gl.TEXTURE_BINDING_2D : gl.TEXTURE_BINDING_CUBE_MAP;
+//  var tex = gl.getParameter(texBinding);
+//  gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+//  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, target, tex, 0);
+//  var status =gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+//  if (status != gl.FRAMEBUFFER_COMPLETE) {
+//    throw('webgl-capture: Need to render texture to readable format');
+//  }
+//  console.log('getting image: ' + image.src + ", " + image.width + ", " + image.height);
+//  var data = new Uint8Array(image.width * image.height * 4);
+//  gl.readPixels(0, 0, image.width, image.height, gl.RGBA, gl.UNSIGNED_BYTE, data);
+//  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, target, null, 0);
+//  gl.bindFramebuffer(gl.FRAMEBUFFER, oldFb);
+//  var newArgs = [target, level, gl.RGBA, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data];
+//  this.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
+};
+
+Capture.prototype.doTexImage2DForImageData = function(name, imageData, args) {
+  var target = args[0];
+  var level = args[1];
+  var internalFormat = args[2];
+  var format = args[3];
+  var type = args[4];
+
+  var newArgs = [target, level, internalFormat, imageData.width, imageData.height, 0, format, type, imageData.data];
+  this.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
+};
+
+Capture.prototype.handle_texImage2D = function(name, args) {
+  this.ctx[name].apply(this.ctx, args);
+  // lastarg is always data.
+  var data = args[args.length - 1];
+  if (data instanceof HTMLCanvasElement) {
+    // Extract as ImageData
+    this.doTexImage2DForImageData(name, data.getImageData(0, 0, data.width, data.height), args);
+  } else if (data instanceof ImageData) {
+    this.doTexImage2DForImageData(name, data, args);
+  } else if (data instanceof HTMLImageElement ||
+             data instanceof Image ||
+             data instanceof HTMLVideoElement) {
+    // Extract data.
+    this.doTexImage2DForImage(name, data, args);
+  } else {
+    // Assume it's array buffer
+    this.addData('gl.' + name + '(' + glArgsToString(name, args) + ');');
+  }
 };
 
 Capture.prototype.handle_get = function(name, args) {
