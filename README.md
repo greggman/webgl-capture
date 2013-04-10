@@ -1,12 +1,14 @@
 WebGL Capture
 =============
 
-A library to capture a stream of WebGL commands from a WebGL program and generate a stand alone program.
+A library to capture a stream of WebGL commands from a WebGL program and
+generate a stand alone program.
 
-Often you need to file a bug or make a reducted test case from a larger WebGL program. This can be very tedious.
-Instead, why not capture the commands sent to WebGL and generate a program that calls those commands. You'll
-then have the minimal program and you can start paring it down quicker and file a bug for a particular browser
-or GPU vendor.
+Often I need to file a bug or make a reducted test case from a larger
+WebGL program.  This can be very tedious.  Instead, why not capture the
+commands sent to WebGL and generate a program that calls those commands.
+I'll then have the minimal program and I can start paring it down
+quicker and file a bug for a particular browser or GPU vendor.
 
 Example
 
@@ -15,12 +17,6 @@ Example
     var canvas = document.getElementById("someCanvas");
     var gl = canvas.getContext("experimental-webgl");
     var captured = false;
-
-    // Only capture if the capture libray is available.
-    if (window.WebGLCapture) {
-      gl = window.WebGLCapture.init(gl);
-      gl.capture.begin();
-    }
 
     initWebGLStuff();
 
@@ -38,12 +34,22 @@ Example
        requestAnimationFrame(renderLoop);
     }
 
-The code above will capture all initialization and the first frame of drawing.
-It will then create a div above the page and insert all the code into it. Copy
-the code to an empty HTML file, plop it in a browser and it should reproduce
-the first frame of your scene.
+The code above will capture all initialization and the first frame of
+drawing.  It will then create a div above the page and insert all the code
+into it.  Copy the code to an empty HTML file, plop it in a browser and it
+should reproduce the first frame of your scene.
 
 This is alpha code.
+
+Documentation
+-------------
+
+By default capturing starts automatically. To turn it off early call
+
+   WebGLCapture.setAutoCapture(false);
+
+Before calling `canvas.getContext`
+
 
 Notes
 -----
@@ -63,7 +69,12 @@ Notes
     are potentially specific to the machine it was captured on. For example,
     if the app checks for OES_texture_float and then uses floating point
     textures the commands written will assume that floating point textures
-    work on the machine the code is played back on.
+    work on the machine the code is played back on. It also assumes they
+    extensions will have the same prefixes.
+
+*   Textures based on image tags assume it can reload the image from the
+    url on image.src at the time texImage2D is called. I originally tried
+    to save the image data in arrays but that make the files way too large.
 
 TODO
 ----
@@ -73,14 +84,16 @@ TODO
     The problem right now is the files are often so big that even copying
     and pasting them off the page is tedious. I'm not a net guru but I
     suspect WebSockets will be needed because generating a single string
-    to pass to XMLHttpRequest.send will probably kill the browser.
+    to pass to XMLHttpRequest.send will probably kill the browser. I could
+    do something crazy like uuencode the data but it's still huge amounts
+    of data so it's probably best to just use a server.
 
 *   Right now it just captures commands, not state. That means in order to
     generate a runnable capture you need to capture all initialization
     commands, then ideally generate no commands until all your data is
-    loaded, then finally render 1 frame, end the capture.
+    loaded, then finally render 1 frame and end the capture.
 
-    For a three.js program that usually means doing something like
+    For a three.js program that usually means doing something like this.
 
         var loadCount = 0;
         var loadNeeded = 3;  // number of things to load before rendering
@@ -124,23 +137,6 @@ TODO
           }
         }
 
-    And, in three.js
-
-        function initGL () {
-
-          try {
-            ...
-          } catch ( error ) {
-            console.error( error );
-          }
-
-          if (window.WebGLCapture) {
-            _gl = window.WebGLCapture.init(_gl);
-            _gl.capture.begin();
-          }
-
-          ...
-
     It would ... probably ... be better to try to capture the state
     and then let you spit out one frame, saving out only the state
     used in that frame but that assumed you're animating. There are
@@ -153,7 +149,6 @@ TODO
 
     Besides, as is it's cross browser. Then again, if it was an
     extension you could capture in one browser and maybe run in another
-
 
 
 
