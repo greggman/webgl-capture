@@ -117,6 +117,8 @@ var glValidEnumContexts = {
   'copyTexImage2D': {8: { 0:true, 2:true }},
   'copyTexSubImage2D': {8: { 0:true }},
   'generateMipmap': {1: { 0:true }},
+  'compressedTexImage2D': {7: { 0: true, 2:true }},
+  'compressedTexSubImage2D': {8: { 0: true, 6:true }},
 
   // Buffer objects
 
@@ -186,7 +188,7 @@ var quoteRE = /"/g;
 
 var glEnumToString = function(value) {
   if (glEnums[value]) {
-    return "gl." + glEnums[value];
+    return glEnums[value];
   } else {
     return "0x" + value.toString(16);
   }
@@ -296,7 +298,8 @@ Inserter.prototype.finish = function() {
   style.width = "100%";
   style.height = "100%";
   style.overflow = "scroll";
-  style.backgroundColor = "rgba(0,0,0,0.9)";
+  style.color = "white";
+  style.backgroundColor = "rgba(0,0,0,0.6)";
   this.element.appendChild(this.root);
 };
 
@@ -314,13 +317,13 @@ var makePropertyWrapper = function(wrapper, original, propertyName) {
 };
 
 // Makes a function that calls a function on another object.
-var makeFunctionWrapper = function(original, functionName, capturer) {
+var makeFunctionWrapper = function(apiName, original, functionName, capturer) {
   //log("wrap fn: " + functionName);
   var f = original[functionName];
   return function() {
     //log("call: " + functionName);
     if (capturer.capture) {
-      var str = 'gl.' + functionName + '(' + glArgsToString(functionName, arguments) + ');';
+      var str = apiName + '.' + functionName + '(' + glArgsToString(functionName, arguments) + ');';
       capturer.addData(str);
     }
     var result = f.apply(original, arguments);
@@ -337,12 +340,15 @@ var wrapFunction = function(name, fn, helper) {
 var makeWrapper = function(apiName, original, helper, capturer) {
   var wrapper = {};
   for (var propertyName in original) {
+    if (typeof original[propertyName] == 'number') {
+      glEnums[original[propertyName]] = apiName + "." + propertyName;
+    }
     if (typeof original[propertyName] == 'function') {
       var handler = helper.constructor.prototype["handle_" + propertyName];
       if (handler) {
         wrapper[propertyName] = wrapFunction(propertyName, handler, helper);
       } else {
-        wrapper[propertyName] = makeFunctionWrapper(original, propertyName, capturer);
+        wrapper[propertyName] = makeFunctionWrapper(apiName, original, propertyName, capturer);
       }
     } else {
       makePropertyWrapper(wrapper, original, propertyName);
@@ -351,20 +357,11 @@ var makeWrapper = function(apiName, original, helper, capturer) {
   return wrapper;
 };
 
-var WebGLWrapper = function(ctx, capture) {
+var WebGLWrapper = function(ctx, capturer) {
   this.ctx = ctx;
-  this.capture = capture;
-};
-
-var Capture = function(ctx, opt_options) {
-  var options = opt_options || { };
-  var self = this;
-  this.helper = options.helper === undefined ? true : options.helper;
-  this.capture = false;
-  this.ctx = ctx;
+  this.capturer = capturer;
   this.currentProgram = null;
   this.programs = [];
-  this.data = [];
   this.numImages = 0;
   this.images = {};
   this.extensions = {};
@@ -376,156 +373,10 @@ var Capture = function(ctx, opt_options) {
   this.ids = {
   };
 
-  this.wrapper = makeWrapper("webglrenderingcontext", gl, this, this);
-  this.wrapper.capture = this;
+  this.wrapper = makeWrapper("gl", gl, this, capturer);
 };
 
-Capture.prototype.addData = function(str) {
-  if (this.capture) {
-    this.data.push(function() {
-      return str;
-    });
-  }
-};
-
-Capture.prototype.log = function(msg) {
-  if (this.capture) {
-    log(msg);
-  }
-};
-
-// TODO: handle extensions
-Capture.prototype.handle_getExtension = function(name, args) {
-//  var name = name.toLowerCase();
-//  var extension = this.extensions[name];
-//  if (!extension) {
-//    extension = this.ctx[name].apply(this.ctx, args);
-//    if (extension) {
-//      extension = makeWrapper(name, extension);
-//      this.extensions[name] = extension;
-//    }
-//  }
-//  return extension;
-};
-
-Capture.prototype.handle_shaderSource = function(name, args) {
-  var resource = args[0];
-  var source = args[1];
-
-  var shaderId = this.shaderBySource[source];
-  if (shaderId === undefined) {
-    var shaderId = this.shaderSources.length;
-    this.shaderSources.push(source);
-    this.shaderBySource[source] = shaderId;
-  }
-
-  this.addData('gl.' + name + '(' + getResourceName(resource) + ', document.getElementById("shader' + shaderId + '").text);');
-  this.ctx[name].apply(this.ctx, args);
-};
-
-Capture.prototype.handle_useProgram = function(name, args) {
-  this.currentProgram = args[0];
-  this.addData('gl.' + name + '(' + getResourceName(this.currentProgram) + ');');
-  this.ctx[name].apply(this.ctx, args);
-};
-
-Capture.prototype.handle_getUniformLocation = function(name, args) {
-  var program = args[0];
-  var uniformName = args[1];
-  var info = program.__capture_info__;
-  if (!info.uniformsByName) {
-    info.uniformsByName = { };
-  }
-  if (!info.uniformsByName[name]) {
-    var location = this.ctx.getUniformLocation(program, uniformName);
-    if (!location) {
-      return null;
-    }
-    location.__capture_info__ = {
-      name: uniformName,
-      value: undefined,
-    };
-    info.uniformsByName[uniformName] = location;
-  }
-  return info.uniformsByName[uniformName];
-};
-
-Capture.prototype.handle_getAttribLocation = function(name, args) {
-  var program = args[0];
-  var attribName = args[1];
-  var info = program.__capture_info__;
-  if (!info.attribsByName) {
-    info.attribsByName = { };
-    info.attribsByLocation = { };
-  }
-  if (!info.attribsByName[name]) {
-    var location = this.ctx.getAttribLocation(program, attribName);
-    if (location < 0) {
-      return location;
-    }
-    info.attribsByName[attribName] = location;
-    info.attribsByLocation[location] = attribName;
-  }
-  return info.attribsByName[attribName];
-};
-
-Capture.prototype.dumpAttribBindings = function(program) {
-  var lines = [];
-  var info = program.__capture_info__;
-  if (info && info.attribsByName) {
-    for (var attrib in info.attribsByName) {
-      lines.push('gl.bindAttribLocation(' + getResourceName(program) + ', ' + info.attribsByName[attrib] + ', "' + attrib + '");');
-    }
-  }
-  return lines.join("\n");
-};
-
-Capture.prototype.handle_bindAttribLocation = function(name, args) {
-  // We don't need to dump bindAttribLocation because we bind all locations at link time.
-  this.ctx[name].apply(this.ctx, args);
-};
-
-Capture.prototype.handle_linkProgram = function(name, args) {
-  var program = args[0];
-  // Must bind all attribs before link.
-  if (this.capture) {
-    var self = this;
-    this.data.push(function() {
-      return self.dumpAttribBindings(program);
-    });
-    this.addData('gl.' + name + '(' + getResourceName(program) + ");");
-  }
-  this.ctx[name].apply(this.ctx, args);
-};
-
-Capture.prototype.getContext = function() {
-  return this.wrapper;
-};
-
-Capture.prototype.begin = function() {
-  this.capture = true;
-};
-
-Capture.prototype.end = function() {
-  this.capture = false;
-};
-
-
-Capture.prototype.insertInElement = function(element) {
-  var inserter = new Inserter(element);
-  this.generate(inserter);
-  inserter.finish();
-};
-
-Capture.prototype.dump = function() {
-  var dumper = new Dumper();
-  this.generate(dumper);
-  return dumper.dump("\n");
-};
-
-Capture.prototype.generate = function(out) {
-  out.addLine("<html>\n<body>");
-
+WebGLWrapper.prototype.generate = function(out) {
   // dump shaders to script tags
   this.shaderSources.forEach(function(source, index) {
     out.addLine('<!-- =================================[ shader' + index + ' ]================== -->');
@@ -576,11 +427,20 @@ Capture.prototype.generate = function(out) {
 
   out.addLine('var canvas = document.getElementById("c");');
   out.addLine('var gl = canvas.getContext("experimental-webgl", ' + glValueToString("getContextAttributes", 0, -1, this.ctx.getContextAttributes()) + ');');
+
+  // Add extension objects.
+  for (var key in this.extensions) {
+    out.addLine("var " + key + ' = gl.getExtension("' + key + '");');
+  }
+
+  // Add resource arrays.
   for (var key in this.ids) {
     out.addLine("var " + key + ' = [];');
   }
   out.addLine("function render() {");
-  this.data.forEach(function(func) {
+
+  // FIX:
+  this.capturer.data.forEach(function(func) {
     out.addLine(func());
   });
   out.addLine("}");
@@ -592,13 +452,113 @@ Capture.prototype.generate = function(out) {
   }
 
   out.addLine("</script>");
-  out.addLine("</body>\n</html>")
-  out.addLine("");
-
-  this.data = [];
 };
 
-Capture.prototype.handle_uniform = function(name, args) {
+// TODO: handle extensions
+WebGLWrapper.prototype.handle_getExtension = function(name, args) {
+  var extensionName = args[0].toLowerCase();
+  var extension = this.extensions[extensionName];
+  if (!extension) {
+    extension = this.ctx[name].apply(this.ctx, args);
+    if (extension) {
+      extension = makeWrapper(extensionName, extension, {}, this.capturer);
+      this.extensions[extensionName] = extension;
+    }
+  }
+  return extension;
+};
+
+WebGLWrapper.prototype.handle_shaderSource = function(name, args) {
+  var resource = args[0];
+  var source = args[1];
+
+  var shaderId = this.shaderBySource[source];
+  if (shaderId === undefined) {
+    var shaderId = this.shaderSources.length;
+    this.shaderSources.push(source);
+    this.shaderBySource[source] = shaderId;
+  }
+
+  this.capturer.addData('gl.' + name + '(' + getResourceName(resource) + ', document.getElementById("shader' + shaderId + '").text);');
+  this.ctx[name].apply(this.ctx, args);
+};
+
+WebGLWrapper.prototype.handle_useProgram = function(name, args) {
+  this.currentProgram = args[0];
+  this.capturer.addData('gl.' + name + '(' + getResourceName(this.currentProgram) + ');');
+  this.ctx[name].apply(this.ctx, args);
+};
+
+WebGLWrapper.prototype.handle_getUniformLocation = function(name, args) {
+  var program = args[0];
+  var uniformName = args[1];
+  var info = program.__capture_info__;
+  if (!info.uniformsByName) {
+    info.uniformsByName = { };
+  }
+  if (!info.uniformsByName[name]) {
+    var location = this.ctx.getUniformLocation(program, uniformName);
+    if (!location) {
+      return null;
+    }
+    location.__capture_info__ = {
+      name: uniformName,
+      value: undefined,
+    };
+    info.uniformsByName[uniformName] = location;
+  }
+  return info.uniformsByName[uniformName];
+};
+
+WebGLWrapper.prototype.handle_getAttribLocation = function(name, args) {
+  var program = args[0];
+  var attribName = args[1];
+  var info = program.__capture_info__;
+  if (!info.attribsByName) {
+    info.attribsByName = { };
+    info.attribsByLocation = { };
+  }
+  if (!info.attribsByName[name]) {
+    var location = this.ctx.getAttribLocation(program, attribName);
+    if (location < 0) {
+      return location;
+    }
+    info.attribsByName[attribName] = location;
+    info.attribsByLocation[location] = attribName;
+  }
+  return info.attribsByName[attribName];
+};
+
+WebGLWrapper.prototype.dumpAttribBindings = function(program) {
+  var lines = [];
+  var info = program.__capture_info__;
+  if (info && info.attribsByName) {
+    for (var attrib in info.attribsByName) {
+      lines.push('gl.bindAttribLocation(' + getResourceName(program) + ', ' + info.attribsByName[attrib] + ', "' + attrib + '");');
+    }
+  }
+  return lines.join("\n");
+};
+
+WebGLWrapper.prototype.handle_bindAttribLocation = function(name, args) {
+  // We don't need to dump bindAttribLocation because we bind all locations at link time.
+  this.ctx[name].apply(this.ctx, args);
+};
+
+WebGLWrapper.prototype.handle_linkProgram = function(name, args) {
+  var program = args[0];
+  // Must bind all attribs before link.
+  if (this.capturer.capture) {
+    var self = this;
+    this.capturer.addFn(function() {
+      return self.dumpAttribBindings(program);
+    });
+    this.capturer.addData('gl.' + name + '(' + getResourceName(program) + ");");
+  }
+  this.ctx[name].apply(this.ctx, args);
+};
+
+WebGLWrapper.prototype.handle_uniform = function(name, args) {
   var location = args[0];
   var captureArgs = [];
   for (var jj = 1; jj < args.length; ++jj) {
@@ -616,14 +576,14 @@ Capture.prototype.handle_uniform = function(name, args) {
   // TODO(gman): handle merging of arrays.
   var info = location.__capture_info__;
   if (this.helper) {
-    this.addData('setUniform(gl, "' + name + '", ' + getResourceName(this.currentProgram) + ', "' + info.name + '", ' + captureArgs.join(", ") + ");");
+    this.capturer.addData('setUniform(gl, "' + name + '", ' + getResourceName(this.currentProgram) + ', "' + info.name + '", ' + captureArgs.join(", ") + ");");
   } else {
-    this.addData("gl." + name + "(gl.getUniformLocation(" + getResourceName(this.currentProgram) + ', "' + info.name + '"), ' + captureArgs.join(", ") + ");");
+    this.capturer.addData("gl." + name + "(gl.getUniformLocation(" + getResourceName(this.currentProgram) + ', "' + info.name + '"), ' + captureArgs.join(", ") + ");");
   }
   this.ctx[name].apply(this.ctx, args);
 };
 
-Capture.prototype.handle_create = function(name, args) {
+WebGLWrapper.prototype.handle_create = function(name, args) {
   var resource = this.ctx[name].apply(this.ctx, args);
   var shortName = name.substring(6).toLowerCase();
 
@@ -635,11 +595,11 @@ Capture.prototype.handle_create = function(name, args) {
     id: id,
     type: shortName,
   };
-  this.addData(getResourceName(resource) + ' = gl.' + name + '(' + glArgsToString(name, args) + ');');
+  this.capturer.addData(getResourceName(resource) + ' = gl.' + name + '(' + glArgsToString(name, args) + ');');
   return resource;
 };
 
-Capture.prototype.doTexImage2DForImage = function(name, image, args) {
+WebGLWrapper.prototype.doTexImage2DForImage = function(name, image, args) {
   var gl = this.ctx;
   var fb = this.fb;
   var newArgs = copySubArray(args, 0, args.length - 1);
@@ -648,7 +608,7 @@ Capture.prototype.doTexImage2DForImage = function(name, image, args) {
   argStr = argStr.replace('null', 'images["' + image.src + '"]');
   this.images[image.src] = true;
   ++this.numImages;
-  this.addData('gl.' + name + '(' + argStr + ');');
+  this.capturer.addData('gl.' + name + '(' + argStr + ');');
 //  var oldFb = gl.getParameter(gl.FRAMEBUFFER_BINDING);
 //  var texBinding = target == gl.TEXTURE_2D ? gl.TEXTURE_BINDING_2D : gl.TEXTURE_BINDING_CUBE_MAP;
 //  var tex = gl.getParameter(texBinding);
@@ -664,10 +624,10 @@ Capture.prototype.doTexImage2DForImage = function(name, image, args) {
 //  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, target, null, 0);
 //  gl.bindFramebuffer(gl.FRAMEBUFFER, oldFb);
 //  var newArgs = [target, level, gl.RGBA, image.width, image.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, data];
-//  this.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
+//  this.capturer.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
 };
 
-Capture.prototype.doTexImage2DForImageData = function(name, imageData, args) {
+WebGLWrapper.prototype.doTexImage2DForImageData = function(name, imageData, args) {
   var target = args[0];
   var level = args[1];
   var internalFormat = args[2];
@@ -675,10 +635,10 @@ Capture.prototype.doTexImage2DForImageData = function(name, imageData, args) {
   var type = args[4];
 
   var newArgs = [target, level, internalFormat, imageData.width, imageData.height, 0, format, type, imageData.data];
-  this.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
+  this.capturer.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
 };
 
-Capture.prototype.handle_texImage2D = function(name, args) {
+WebGLWrapper.prototype.handle_texImage2D = function(name, args) {
   this.ctx[name].apply(this.ctx, args);
   // lastarg is always data.
   var data = args[args.length - 1];
@@ -694,18 +654,18 @@ Capture.prototype.handle_texImage2D = function(name, args) {
     this.doTexImage2DForImage(name, data, args);
   } else {
     // Assume it's array buffer
-    this.addData('gl.' + name + '(' + glArgsToString(name, args) + ');');
+    this.capturer.addData('gl.' + name + '(' + glArgsToString(name, args) + ');');
   }
 };
 
-Capture.prototype.handle_get = function(name, args) {
+WebGLWrapper.prototype.handle_get = function(name, args) {
   // Don't need the getXXX calls for playback.
-  this.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
+  this.capturer.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
   return this.ctx[name].apply(this.ctx, args);
 };
 
-Capture.prototype.handle_skip = function(name, args) {
-  this.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
+WebGLWrapper.prototype.handle_skip = function(name, args) {
+  this.capturer.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
   return this.ctx[name].apply(this.ctx, args);
 };
 
@@ -775,16 +735,75 @@ var handlers = {
 for (var handler in handlers) {
   var functions = handlers[handler];
   functions.forEach(function(name) {
-    Capture.prototype["handle_" + name] = Capture.prototype[handler];
+    WebGLWrapper.prototype["handle_" + name] = WebGLWrapper.prototype[handler];
   });
 }
 
-var init = function(ctx, opt_options) {
-  for (var propertyName in ctx) {
-    if (typeof ctx[propertyName] == 'number') {
-      glEnums[ctx[propertyName]] = propertyName;
-    }
+var Capture = function(ctx, opt_options) {
+  var options = opt_options || { };
+  var self = this;
+  this.helper = options.helper === undefined ? true : options.helper;
+  this.capture = false;
+  this.data = [];
+
+  var helper = new WebGLWrapper(ctx, this);
+  this.webglHelper = helper;
+  this.webglWrapper = helper.wrapper;
+  this.webglWrapper.capture = this;
+};
+
+Capture.prototype.addFn = function(fn) {
+  this.data.push(fn);
+};
+
+Capture.prototype.addData = function(str) {
+  if (this.capture) {
+    this.addFn(function() {
+      return str;
+    });
   }
+};
+
+Capture.prototype.log = function(msg) {
+  if (this.capture) {
+    log(msg);
+  }
+};
+
+Capture.prototype.getContext = function() {
+  return this.webglWrapper;
+};
+
+Capture.prototype.begin = function() {
+  this.capture = true;
+};
+
+Capture.prototype.end = function() {
+  this.capture = false;
+};
+
+
+Capture.prototype.insertInElement = function(element) {
+  var inserter = new Inserter(element);
+  this.generate(inserter);
+  inserter.finish();
+};
+
+Capture.prototype.dump = function() {
+  var dumper = new Dumper();
+  this.generate(dumper);
+  return dumper.dump("\n");
+};
+
+Capture.prototype.generate = function(out) {
+  out.addLine("<html>\n<body>");
+  this.webglHelper.generate(out);
+  out.addLine("</body>\n</html>")
+  out.addLine("");
+  this.data = [];
+};
+
+var init = function(ctx, opt_options) {
   // Make a an object that has a copy of every property of the WebGL context
   // but wraps all functions.
   var capture = new Capture(ctx, opt_options);
