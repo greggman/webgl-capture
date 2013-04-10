@@ -300,6 +300,62 @@ Inserter.prototype.finish = function() {
   this.element.appendChild(this.root);
 };
 
+var makePropertyWrapper = function(wrapper, original, propertyName) {
+  //log("wrap prop: " + propertyName);
+  wrapper.__defineGetter__(propertyName, function() {
+    return original[propertyName];
+  });
+  // TODO(gmane): this needs to handle properties that take more than
+  // one value?
+  wrapper.__defineSetter__(propertyName, function(value) {
+    //log("set: " + propertyName);
+    original[propertyName] = value;
+  });
+};
+
+// Makes a function that calls a function on another object.
+var makeFunctionWrapper = function(original, functionName, capturer) {
+  //log("wrap fn: " + functionName);
+  var f = original[functionName];
+  return function() {
+    //log("call: " + functionName);
+    if (capturer.capture) {
+      var str = 'gl.' + functionName + '(' + glArgsToString(functionName, arguments) + ');';
+      capturer.addData(str);
+    }
+    var result = f.apply(original, arguments);
+    return result;
+  };
+}
+
+var wrapFunction = function(name, fn, helper) {
+  return function() {
+    return fn.call(helper, name, arguments);
+  }
+};
+
+var makeWrapper = function(apiName, original, helper, capturer) {
+  var wrapper = {};
+  for (var propertyName in original) {
+    if (typeof original[propertyName] == 'function') {
+      var handler = helper.constructor.prototype["handle_" + propertyName];
+      if (handler) {
+        wrapper[propertyName] = wrapFunction(propertyName, handler, helper);
+      } else {
+        wrapper[propertyName] = makeFunctionWrapper(original, propertyName, capturer);
+      }
+    } else {
+      makePropertyWrapper(wrapper, original, propertyName);
+    }
+  }
+  return wrapper;
+};
+
+var WebGLWrapper = function(ctx, capture) {
+  this.ctx = ctx;
+  this.capture = capture;
+};
+
 var Capture = function(ctx, opt_options) {
   var options = opt_options || { };
   var self = this;
@@ -311,6 +367,7 @@ var Capture = function(ctx, opt_options) {
   this.data = [];
   this.numImages = 0;
   this.images = {};
+  this.extensions = {};
   this.shaderSources = [];
   var gl = this.ctx;
   this.fb = gl.createFramebuffer();
@@ -319,57 +376,8 @@ var Capture = function(ctx, opt_options) {
   this.ids = {
   };
 
-  var makePropertyWrapper = function(wrapper, original, propertyName) {
-    //log("wrap prop: " + propertyName);
-    wrapper.__defineGetter__(propertyName, function() {
-      return original[propertyName];
-    });
-    // TODO(gmane): this needs to handle properties that take more than
-    // one value?
-    wrapper.__defineSetter__(propertyName, function(value) {
-      //log("set: " + propertyName);
-      original[propertyName] = value;
-    });
-  };
-
-  // Makes a function that calls a function on another object.
-  var makeFunctionWrapper = function(original, functionName) {
-    //log("wrap fn: " + functionName);
-    var f = original[functionName];
-    return function() {
-      //log("call: " + functionName);
-      if (self.capture) {
-        var str = 'gl.' + functionName + '(' + glArgsToString(functionName, arguments) + ');';
-        self.addData(str);
-      }
-      var result = f.apply(original, arguments);
-      return result;
-    };
-  }
-
-  var wrapFunction = function(name, fn) {
-    return function() {
-      return fn.call(self, name, arguments);
-    }
-  };
-
-  var wrapper = {
-    capture: this,
-  };
-  this.wrapper = wrapper;
-
-  for (var propertyName in ctx) {
-    if (typeof ctx[propertyName] == 'function') {
-      var handler = Capture.prototype["handle_" + propertyName];
-      if (handler) {
-        wrapper[propertyName] = wrapFunction(propertyName, handler);
-      } else {
-        wrapper[propertyName] = makeFunctionWrapper(ctx, propertyName);
-      }
-    } else {
-      makePropertyWrapper(wrapper, ctx, propertyName);
-    }
-  }
+  this.wrapper = makeWrapper("webglrenderingcontext", gl, this, this);
+  this.wrapper.capture = this;
 };
 
 Capture.prototype.addData = function(str) {
@@ -388,12 +396,16 @@ Capture.prototype.log = function(msg) {
 
 // TODO: handle extensions
 Capture.prototype.handle_getExtension = function(name, args) {
-  return null;
-};
-
-// TODO: handle extensions
-Capture.prototype.handle_getSupportedExtensions = function(name, args) {
-  return [];
+//  var name = name.toLowerCase();
+//  var extension = this.extensions[name];
+//  if (!extension) {
+//    extension = this.ctx[name].apply(this.ctx, args);
+//    if (extension) {
+//      extension = makeWrapper(name, extension);
+//      this.extensions[name] = extension;
+//    }
+//  }
+//  return extension;
 };
 
 Capture.prototype.handle_shaderSource = function(name, args) {
@@ -717,6 +729,7 @@ var handlers = {
     "getShaderParameter",
     "getShaderPrecisionFormat",
     "getShaderSource",
+    "getSupportedExtensions",
     "getUniform",
 //    "getUniformLocation",
     "getTextureParameter",
