@@ -193,7 +193,7 @@ var glEnums = {};
 var typedArrays = [
   { name: "Int8Array",         ctor: Int8Array, },
   { name: "Uint8Array",        ctor: Uint8Array, },
-  { name: "Unit8ClampedArray", ctor: Uint8ClampedArray, },
+  { name: "Uint8ClampedArray", ctor: Uint8ClampedArray, },
   { name: "Int16Array",        ctor: Int16Array, },
   { name: "Uint16Array",       ctor: Uint16Array, },
   { name: "Int32Array",        ctor: Int32Array, },
@@ -309,11 +309,14 @@ var Inserter = function(element) {
   this.element = element;
   this.root = document.createElement("div");
   this.root.style = "";
+  var style = document.createElement("style");
+  style.appendChild(document.createTextNode(".canvascapture pre { margin: 0px; }"));
+  this.root.appendChild(style);
 };
 
 Inserter.prototype.addLine = function(str) {
   var pre = document.createElement("pre");
-  pre.innerText = str;
+  pre.appendChild(document.createTextNode(str));
   this.root.appendChild(pre);
 };
 
@@ -831,26 +834,31 @@ Capture.prototype.generate = function(out) {
   this.data = [];
 };
 
+// Wrap cavnas.getContext;
+var autoCapture = true;
+
 var init = function(ctx, opt_options) {
   // Make a an object that has a copy of every property of the WebGL context
   // but wraps all functions.
-  var capture = new Capture(ctx, opt_options);
-  return capture.getContext();
-};
-
-// Wrap cavnas.getContext;
-var oldGetContext = HTMLCanvasElement.prototype.getContext;
-var autoCapture = true;
-
-HTMLCanvasElement.prototype.getContext = function() {
-  var ctx = oldGetContext.apply(this, arguments)
-  var type = arguments[0];
-  if (autoCapture && (type == "experimental-webgl" || type == "webgl")) {
-    ctx = init(ctx);
-    ctx.capture.begin();
+  if (!ctx.capture) {
+    ctx.capture = new Capture(ctx, opt_options);
+    if (autoCapture) {
+      ctx.capture.begin();
+    }
   }
-  return ctx;
+  return ctx.capture.getContext();
 };
+
+HTMLCanvasElement.prototype.getContext = (function(oldFn) {
+  return function() {
+    var ctx = oldFn.apply(this, arguments)
+    var type = arguments[0];
+    if (autoCapture && (type == "experimental-webgl" || type == "webgl")) {
+      ctx = init(ctx);
+    }
+    return ctx;
+  };
+}(HTMLCanvasElement.prototype.getContext));
 
 var setAutoCapture = function(capture) {
   autoCapture = capture;
