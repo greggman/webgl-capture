@@ -42,7 +42,7 @@ into it.  Copy the code to an empty HTML file, plop it in a browser and it
 should reproduce the first frame of your scene.
 
 [There's a live example here](https://greggman.github.io/webgl-capture/examples/twgl-cube.html)
-as well as [a an example of a capture here](https://greggman.github.io/webgl-capture/examples/twgl-cube-example-capture.htm).
+as well as [a an example of a capture here](https://greggman.github.io/webgl-capture/examples/twgl-cube-example-capture.html).
 
 This is alpha code.
 
