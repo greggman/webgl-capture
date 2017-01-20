@@ -1,0 +1,191 @@
+<html>
+<body>
+<!-- =================================[ shader0 ]================== -->
+<script id="shader0" type="shader">
+uniform mat4 u_worldViewProjection;
+uniform vec3 u_lightWorldPos;
+uniform mat4 u_world;
+uniform mat4 u_viewInverse;
+uniform mat4 u_worldInverseTranspose;
+
+attribute vec4 a_position;
+attribute vec3 a_normal;
+attribute vec2 a_texcoord;
+
+varying vec4 v_position;
+varying vec2 v_texCoord;
+varying vec3 v_normal;
+varying vec3 v_surfaceToLight;
+varying vec3 v_surfaceToView;
+
+void main() {
+  v_texCoord = a_texcoord;
+  v_position = (u_worldViewProjection * a_position);
+  v_normal = (u_worldInverseTranspose * vec4(a_normal, 0)).xyz;
+  v_surfaceToLight = u_lightWorldPos - (u_world * a_position).xyz;
+  v_surfaceToView = (u_viewInverse[3] - (u_world * a_position)).xyz;
+  gl_Position = v_position;
+}
+  
+</script>
+<!-- =================================[ shader1 ]================== -->
+<script id="shader1" type="shader">
+precision mediump float;
+
+varying vec4 v_position;
+varying vec2 v_texCoord;
+varying vec3 v_normal;
+varying vec3 v_surfaceToLight;
+varying vec3 v_surfaceToView;
+
+uniform vec4 u_lightColor;
+uniform vec4 u_ambient;
+uniform sampler2D u_diffuse;
+uniform vec4 u_specular;
+uniform float u_shininess;
+uniform float u_specularFactor;
+
+vec4 lit(float l ,float h, float m) {
+  return vec4(1.0,
+              max(l, 0.0),
+              (l > 0.0) ? pow(max(0.0, h), m) : 0.0,
+              1.0);
+}
+
+void main() {
+  vec4 diffuseColor = texture2D(u_diffuse, v_texCoord);
+  vec3 a_normal = normalize(v_normal);
+  vec3 surfaceToLight = normalize(v_surfaceToLight);
+  vec3 surfaceToView = normalize(v_surfaceToView);
+  vec3 halfVector = normalize(surfaceToLight + surfaceToView);
+  vec4 litR = lit(dot(a_normal, surfaceToLight),
+                    dot(a_normal, halfVector), u_shininess);
+  vec4 outColor = vec4((
+  u_lightColor * (diffuseColor * litR.y + diffuseColor * u_ambient +
+                u_specular * litR.z * u_specularFactor)).rgb,
+      diffuseColor.a);
+  gl_FragColor = outColor;
+}
+  
+</script>
+<!-- =============================[ code ]======================================== -->
+<canvas id="c" width="1640" height="403"></canvas>
+<script>
+var canvas = document.getElementById("c");
+var gl = canvas.getContext("experimental-webgl", {
+    "alpha":true,
+    "antialias":true,
+    "depth":true,
+    "failIfMajorPerformanceCaveat":false,
+    "premultipliedAlpha":true,
+    "preserveDrawingBuffer":false,
+    "stencil":false});
+var shader = [];
+var program = [];
+var buffer = [];
+var texture = [];
+function render() {
+shader[0] = gl.createShader(gl.VERTEX_SHADER);
+gl.shaderSource(shader[0], document.getElementById("shader0").text);
+gl.compileShader(shader[0]);
+// gl.getShaderParameter(shader[0], gl.COMPILE_STATUS);
+shader[1] = gl.createShader(gl.FRAGMENT_SHADER);
+gl.shaderSource(shader[1], document.getElementById("shader1").text);
+gl.compileShader(shader[1]);
+// gl.getShaderParameter(shader[1], gl.COMPILE_STATUS);
+program[0] = gl.createProgram();
+gl.attachShader(program[0], shader[0]);
+gl.attachShader(program[0], shader[1]);
+gl.bindAttribLocation(program[0], 0, "a_normal");
+gl.bindAttribLocation(program[0], 1, "a_texcoord");
+gl.bindAttribLocation(program[0], 2, "a_position");
+gl.linkProgram(program[0]);
+// gl.getProgramParameter(program[0], gl.LINK_STATUS);
+// gl.getProgramParameter(program[0], gl.ACTIVE_UNIFORMS);
+// gl.getActiveUniform(program[0], 0);
+// gl.getActiveUniform(program[0], 1);
+// gl.getActiveUniform(program[0], 2);
+// gl.getActiveUniform(program[0], 3);
+// gl.getActiveUniform(program[0], 4);
+// gl.getActiveUniform(program[0], 5);
+// gl.getActiveUniform(program[0], 6);
+// gl.getActiveUniform(program[0], 7);
+// gl.getActiveUniform(program[0], 8);
+// gl.getActiveUniform(program[0], 9);
+// gl.getActiveUniform(program[0], 10);
+// gl.getProgramParameter(program[0], gl.ACTIVE_ATTRIBUTES);
+// gl.getActiveAttrib(program[0], 0);
+// gl.getActiveAttrib(program[0], 1);
+// gl.getActiveAttrib(program[0], 2);
+buffer[0] = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[0]);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+1, 1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, -1, -1, -1, -1, -1, 1, -1, 1, 1, 1, 1, 1, 1, 1,
+-1, -1, 1, -1, -1, -1, -1, 1, -1, -1, 1, -1, 1, -1, -1, 1, 1, 1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1, -1, 1, -1, 1,
+1, -1, 1, -1, -1, -1, -1, -1
+]), gl.STATIC_DRAW);
+buffer[1] = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[1]);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1,
+0, 0, 1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, -1, 0,
+0, -1, 0, 0, -1, 0, 0, -1
+]), gl.STATIC_DRAW);
+buffer[2] = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[2]);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1,
+1, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1
+]), gl.STATIC_DRAW);
+buffer[3] = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer[3]);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([
+0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21,
+22, 20, 22, 23
+]), gl.STATIC_DRAW);
+texture[0] = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, texture[0]);
+gl.bindTexture(gl.TEXTURE_2D, texture[0]);
+gl.pixelStorei(gl.UNPACK_ALIGNMENT, gl.ONE);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 2, 2, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([
+255, 255, 255, 255, 192, 192, 192, 255, 192, 192, 192, 255, 255, 255, 255, 255
+]));
+gl.bindTexture(gl.TEXTURE_2D, texture[0]);
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.bindTexture(gl.TEXTURE_2D, texture[0]);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+gl.viewport(0, 0, 1640, 403);
+gl.enable(gl.DEPTH_TEST);
+gl.enable(gl.CULL_FACE);
+gl.clear(0x4100);
+gl.useProgram(program[0]);
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[0]);
+gl.enableVertexAttribArray(2);
+gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[1]);
+gl.enableVertexAttribArray(0);
+gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+gl.bindBuffer(gl.ARRAY_BUFFER, buffer[2]);
+gl.enableVertexAttribArray(1);
+gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 0, 0);
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffer[3]);
+gl.uniform3fv(gl.getUniformLocation(program[0], "u_lightWorldPos"), [1, 8, -10]);
+gl.uniform4fv(gl.getUniformLocation(program[0], "u_lightColor"), [1, 0.8, 0.8, 1]);
+gl.uniform4fv(gl.getUniformLocation(program[0], "u_ambient"), [0, 0, 0, 1]);
+gl.uniform4fv(gl.getUniformLocation(program[0], "u_specular"), [1, 1, 1, 1]);
+gl.uniform1f(gl.getUniformLocation(program[0], "u_shininess"), 50);
+gl.uniform1f(gl.getUniformLocation(program[0], "u_specularFactor"), 1);
+gl.uniform1i(gl.getUniformLocation(program[0], "u_diffuse"), 0);
+gl.activeTexture(gl.TEXTURE0);
+gl.bindTexture(gl.TEXTURE_2D, texture[0]);
+gl.uniformMatrix4fv(gl.getUniformLocation(program[0], "u_viewInverse"), false, [-0.986393928527832, 0, -0.16439898312091827, 0, -0.09032774716615677, 0.8355317115783691, 0.5419664978981018, 0, 0.1373605579137802, 0.5494422316551208, -0.8241633772850037, 0, 1, 4, -6, 1]);
+gl.uniformMatrix4fv(gl.getUniformLocation(program[0], "u_world"), false, [0.9946046471595764, 0, -0.10373803228139877, 0, 0, 1, 0, 0, 0.10373803228139877, 0, 0.9946046471595764, 0, 0, 0, 0, 1]);
+gl.uniformMatrix4fv(gl.getUniformLocation(program[0], "u_worldInverseTranspose"), false, [0.9946046471595764, 0, -0.10373803228139877, 0, 0, 1, 0, 0, 0.10373803228139877, 0, 0.9946046471595764, 0, 0, 0, 0, 1]);
+gl.uniformMatrix4fv(gl.getUniformLocation(program[0], "u_worldViewProjection"), false, [-0.8840843439102173, -0.5451143383979797, -0.2454972267150879, -0.22211654484272003, -5.916515055659488e-10, 3.1182467937469482, -0.6072782278060913, -0.5494422316551208, -0.24379608035087585, 1.9767628908157349, 0.8902533054351807, 0.8054672479629517, 3.2711156450204726e-8, -4.388418517464743e-7, 6.993805408477783, 7.280109882354736]);
+gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+}
+render();
+</script>
+</body>
+</html>
