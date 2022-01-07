@@ -4,7 +4,7 @@ WebGL Capture
 A library to capture a stream of WebGL commands from a WebGL program and
 generate a stand alone program.
 
-Often I need to file a bug or make a reducted test case from a larger
+Often I need to file a bug or make a reduced test case from a larger
 WebGL program.  This can be very tedious.  Instead, why not capture the
 commands sent to WebGL and generate a program that calls those commands.
 I'll then have the minimal program and I can start paring it down
@@ -12,39 +12,41 @@ quicker and file a bug for a particular browser or GPU vendor.
 
 Example
 
-    <script src="webgl-capture.js"></script>
-    <script>
-    var canvas = document.getElementById("someCanvas");
-    var gl = canvas.getContext("experimental-webgl");
-    var captured = false;
+```js
+<script src="webgl-capture.js"></script>
+<script>
+const canvas = document.getElementById("someCanvas");
+const gl = canvas.getContext("experimental-webgl");
+let captured = false;
 
-    initWebGLStuff();
+initWebGLStuff();
 
-    function renderLoop() {
-       renderWebGLStuff();
+function renderLoop() {
+   renderWebGLStuff();
 
-       // capture the first frame.
-       if (!captured) {
-         captured = true;
+   // capture the first frame.
+   if (!captured) {
+     captured = true;
 
-         // only call this code if it exists.
-         if (gl.capture) {
-           gl.capture.end();
-           gl.capture.insertInElement(document.body);
-         }
-       }
-       requestAnimationFrame(renderLoop);
-    }
+     // only call this code if it exists.
+     if (gl.capture) {
+       gl.capture.end();
+       console.log(gl.capture.generate());
+     }
+   }
+   requestAnimationFrame(renderLoop);
+}
+```
 
 The code above will capture all initialization and the first frame of
-drawing.  It will then create a div above the page and insert all the code
-into it.  Copy the code to an empty HTML file, plop it in a browser and it
+drawing.  It will then print that code to the JavaScript console.
+Copy the code to an empty HTML file, plop it in a browser and it
 should reproduce the first frame of your scene.
 
 [There's a live example here](https://greggman.github.io/webgl-capture/examples/twgl-cube.html)
 as well as [a an example of a capture here](https://greggman.github.io/webgl-capture/examples/twgl-cube-example-capture.html).
 
-This is alpha code.
+** This is beta code **
 
 Documentation
 -------------
@@ -74,7 +76,7 @@ Notes
     are potentially specific to the machine it was captured on. For example,
     if the app checks for OES_texture_float and then uses floating point
     textures the commands written will assume that floating point textures
-    work on the machine the code is played back on. It also assumes they
+    work on the machine the code is played back on. It also assumes the
     extensions will have the same prefixes.
 
 *   Textures based on image tags assume it can reload the image from the
@@ -89,9 +91,12 @@ TODO
     The problem right now is the files are often so big that even copying
     and pasting them off the page is tedious. I'm not a net guru but I
     suspect WebSockets will be needed because generating a single string
-    to pass to XMLHttpRequest.send will probably kill the browser. I could
+    to pass to fetch will probably kill the browser. I could
     do something crazy like uuencode the data but it's still huge amounts
     of data so it's probably best to just use a server.
+
+    Another solution would be to copy the data to blobs and allow you to
+    download it.
 
 *   Right now it just captures commands, not state. That means in order to
     generate a runnable capture you need to capture all initialization
@@ -137,7 +142,7 @@ TODO
             var gl = renderer.context;
             if (gl.capture) {
               gl.capture.end();
-              gl.capture.insertInElement(document.body);
+              console.log(gl.capture.generate());
             }
           }
         }
@@ -148,12 +153,6 @@ TODO
     apps that just draw something once or in response to input so
     both options are probably needed.
 
-*   Turn this into extension. I think the WebGL Inspector or the
-    google Web Tracing Framework will eventually support something
-    similar to this so maybe no need to make this an extension.
-
-    Besides, as is it's cross browser. Then again, if it was an
-    extension you could capture in one browser and maybe run in another
 
 
 
