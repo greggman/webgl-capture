@@ -36,10 +36,21 @@ const WebGLCapture = (function(){
 const getResourceName = function(resource) {
   if (resource) {
     const info = resource.__capture_info__;
-    return info.type + '[' + info.id + ']';
+    return `${info.type}[${info.id}]`;
   }
   return 'null';
 };
+
+const glEnums = {};
+
+function glEnumToString(value) {
+  return glEnums[value];
+}
+
+/**
+ * Types of contexts we have added to map
+ */
+const mappedContextTypes = {};
 
 /**
  * Map of names to numbers.
@@ -47,13 +58,31 @@ const getResourceName = function(resource) {
  */
 const enumStringToValue = {};
 
+/**
+ * Initializes this module. Safe to call more than once.
+ * @param {!WebGLRenderingContext} ctx A WebGL context. If
+ *    you have more than one context it doesn't matter which one
+ *    you pass in, it is only used to pull out constants.
+ */
+function addEnumsForContext(ctx, type) {
+  if (!mappedContextTypes[type]) {
+    mappedContextTypes[type] = true;
+    for (const propertyName in ctx) {
+      if (typeof ctx[propertyName] === 'number') {
+        //glEnums[ctx[propertyName]] = propertyName;
+        enumStringToValue[propertyName] = ctx[propertyName];
+      }
+    }
+  }
+}
+
 function enumArrayToString(gl, enums) {
   const enumStrings = [];
   if (enums.length) {
     for (let i = 0; i < enums.length; ++i) {
       enums.push(glEnumToString(enums[i]));  // eslint-disable-line
     }
-    return '[' + enumStrings.join(', ') + ']';
+    return `[${enumStrings.join(', ')}]`;
   }
   return enumStrings.toString();
 }
@@ -498,8 +527,6 @@ for (const [name, fnInfos] of Object.entries(glFunctionInfos)) {
   }
 }
 
-const glEnums = {};
-
 const typedArrays = [
   { name: "Int8Array",         ctor: Int8Array, },
   { name: "Uint8Array",        ctor: Uint8Array, },
@@ -524,7 +551,7 @@ const eolRE = /\n/g;
 const crRE = /\r/g;
 const quoteRE = /"/g;
 
-function glValueToString(functionName, numArgs, argumentIndex, value) {
+function glValueToString(ctx, functionName, numArgs, argumentIndex, value) {
   if (value === undefined) {
     return 'undefined';
   } else if (value === null) {
@@ -534,13 +561,18 @@ function glValueToString(functionName, numArgs, argumentIndex, value) {
     if (funcInfos !== undefined) {
       const funcInfo = funcInfos[numArgs];
       if (funcInfo !== undefined) {
-        if (funcInfo.enums && funcInfo.enums[argumentIndex] !== undefined) {
-          return glEnums[value];
+        if (funcInfo.enums) {
+          const entry = funcInfo.enums[argumentIndex];
+          if (typeof entry === 'function') {
+            return entry(ctx, value)
+          } else if (entry !== undefined) {
+            return glEnums[value];
+          }
         }
       }
     }
   } else if (typeof (value) === 'string') {
-    return '"' + value.toString().replace(eolRE, "\\n").replace(crRE, "\\n").replace(quoteRE, "\\\"") + '"';
+    return JSON.stringify(value);
   } else if (value.length !== undefined) {
     const values = [];
     const step = 32;
@@ -548,17 +580,17 @@ function glValueToString(functionName, numArgs, argumentIndex, value) {
       const end = Math.min(jj + step, value.length);
       const sub = [];
       for (let ii = jj; ii < end; ++ii) {
-        sub.push(typeof value[ii] === 'string' ? `"${value[ii]}"` : value[ii].toString());
+        sub.push(typeof value[ii] === 'string' ? JSON.stringify(value[ii]) : value[ii].toString());
       }
       values.push(sub.join(", "));
     }
     for (let ii = 0; ii < typedArrays.length; ++ii) {
       const type = typedArrays[ii];
       if (value instanceof type.ctor) {
-        return "new " + type.name + "([\n" + values.join(",\n") + "\n])";
+        return `new ${type.name}([\n${values.join(",\n")}\n])`;
       }
     }
-    return "\n[\n" + values.join(",\n") + "\n]";
+    return `\n[\n${values.join(",\n")}\n]`;
   } else if (value instanceof ArrayBuffer) {
     const view = new Uint8Array(value);
     return `new Uint8Array([${view}]).buffer`;
@@ -576,22 +608,22 @@ function glValueToString(functionName, numArgs, argumentIndex, value) {
       // WebGLContextAttributes
       for (const key in value) {
         if (value.hasOwnProperty(key)) {
-          values.push('"' + key + '":' + glValueToString("", 0, -1, value[key]));
+          values.push(`"${key}": ${glValueToString(ctx, "", 0, -1, value[key])}`);
         }
       }
-      return "{\n    " + values.join(",\n    ") + "}";
+      return `{\n    ${values.join(",\n    ")}}`;
     }
   }
   return value.toString();
 }
 
-function glArgsToString(functionName, args) {
+function glArgsToString(ctx, functionName, args) {
   if (args === undefined) {
     return "";
   }
   const values = [];
   for (let ii = 0; ii < args.length; ++ii) {
-    values.push(glValueToString(functionName, args.length, ii, args[ii]));
+    values.push(glValueToString(ctx, functionName, args.length, ii, args[ii]));
   }
   return values.join(", ");
 }
@@ -615,11 +647,11 @@ function makeFunctionWrapper(apiName, original, functionName, capturer) {
   const f = original[functionName];
   return function(...args) {
     //log("call: " + functionName);
-    if (functionName === 'ggetBufferSubData') {
+    if (functionName === 'clear') {
       debugger;
     }
     if (capturer.capture) {
-      const str = apiName + '.' + functionName + '(' + glArgsToString(functionName, args) + ');';
+      const str = `${apiName}.${functionName}(${glArgsToString(this, functionName, args)});`;
       capturer.addData(str);
     }
     const result = f.apply(original, args);
@@ -650,6 +682,7 @@ function makeWrapper(apiName, original, helper, capturer) {
       makePropertyWrapper(wrapper, original, propertyName);
     }
   }
+  addEnumsForContext(original, apiName);
   return wrapper;
 }
 
@@ -711,16 +744,16 @@ class WebGLWrapper {
     }
 
     out.push('const canvas = document.querySelector("canvas");');
-    out.push(`const gl = canvas.getContext("${this.ctx.texImage3D ? 'webgl2' : 'webgl'}", ${glValueToString("getContextAttributes", 0, -1, this.ctx.getContextAttributes())});`);
+    out.push(`const gl = canvas.getContext("${this.ctx.texImage3D ? 'webgl2' : 'webgl'}", ${glValueToString(this.ctx, "getContextAttributes", 0, -1, this.ctx.getContextAttributes())});`);
 
     // Add extension objects.
     for (const key of Object.keys(this.extensions)) {
-      out.push("const " + key + ' = gl.getExtension("' + key + '");');
+      out.push(`const ${key} = gl.getExtension("${key}");`);
     }
 
     // Add resource arrays.
     for (const key of Object.keys(this.ids)) {
-      out.push("const " + key + ' = [];');
+      out.push(`const ${key} = [];`);
     }
     out.push("function render() {");
 
@@ -771,7 +804,7 @@ class WebGLWrapper {
 
   handle_useProgram(name, args) {
     this.currentProgram = args[0];
-    this.capturer.addData('gl.' + name + '(' + getResourceName(this.currentProgram) + ');');
+    this.capturer.addData(`gl.${name}(${getResourceName(this.currentProgram)});`);
     this.ctx[name].apply(this.ctx, args);
   }
 
@@ -820,7 +853,7 @@ class WebGLWrapper {
     const info = program.__capture_info__;
     if (info && info.attribsByName) {
       for (const attrib in info.attribsByName) {
-        lines.push('gl.bindAttribLocation(' + getResourceName(program) + ', ' + info.attribsByName[attrib] + ', "' + attrib + '");');
+        lines.push(`gl.bindAttribLocation(${getResourceName(program)}, ${info.attribsByName[attrib]}, "${attrib}");`);
       }
     }
     return lines.join("\n");
@@ -839,7 +872,7 @@ class WebGLWrapper {
       this.capturer.addFn(function() {
         return self.dumpAttribBindings(program);
       });
-      this.capturer.addData('gl.' + name + '(' + getResourceName(program) + ");");
+      this.capturer.addData(`gl.${name}(${getResourceName(program)});`);
     }
     this.ctx[name].apply(this.ctx, args);
   }
@@ -862,9 +895,9 @@ class WebGLWrapper {
     // TODO(gman): handle merging of arrays.
     const info = location.__capture_info__;
     if (this.helper) {
-      this.capturer.addData('setUniform(gl, "' + name + '", ' + getResourceName(this.currentProgram) + ', "' + info.name + '", ' + captureArgs.join(", ") + ");");
+      this.capturer.addData(`setUniform(gl, "${name}", ${getResourceName(this.currentProgram)}, "${info.name}", ${captureArgs.join(", ")}};`);
     } else {
-      this.capturer.addData("gl." + name + "(gl.getUniformLocation(" + getResourceName(this.currentProgram) + ', "' + info.name + '"), ' + captureArgs.join(", ") + ");");
+      this.capturer.addData(`gl.${name}(gl.getUniformLocation(${getResourceName(this.currentProgram)}, "${info.name}"), ${captureArgs.join(", ")});`);
     }
     this.ctx[name].apply(this.ctx, args);
   }
@@ -881,18 +914,18 @@ class WebGLWrapper {
       id: id,
       type: shortName,
     };
-    this.capturer.addData(getResourceName(resource) + ' = gl.' + name + '(' + glArgsToString(name, args) + ');');
+    this.capturer.addData(`${getResourceName(resource)} = gl.${name}(${glArgsToString(this.ctx, name, args)});`);
     return resource;
   }
 
   doTexImage2DForImage(name, image, args) {
     const newArgs = [...args];
     newArgs.push(null);
-    let argStr = glArgsToString(name, newArgs);
-    argStr = argStr.replace('null', 'images["' + image.src + '"]');
+    let argStr = glArgsToString(this.ctx, name, newArgs);
+    argStr = argStr.replace('null', `images["${image.src}"]`);
     this.images[image.src] = true;
     ++this.numImages;
-    this.capturer.addData('gl.' + name + '(' + argStr + ');');
+    this.capturer.addData(`gl.${name}(${argStr});`);
   }
 
   doTexImage2DForImageData(name, imageData, args) {
@@ -903,7 +936,7 @@ class WebGLWrapper {
     const type = args[4];
 
     const newArgs = [target, level, internalFormat, imageData.width, imageData.height, 0, format, type, imageData.data];
-    this.capturer.addData('gl.' + name + '(' + glArgsToString(name, newArgs) + ');');
+    this.capturer.addData(`gl.${name}(${glArgsToString(this.ctx, name, newArgs)});`);
   }
 
   handle_texImage2D(name, args) {
@@ -922,18 +955,18 @@ class WebGLWrapper {
       this.doTexImage2DForImage(name, data, args);
     } else {
       // Assume it's array buffer
-      this.capturer.addData('gl.' + name + '(' + glArgsToString(name, args) + ');');
+      this.capturer.addData(`gl.${name}(${glArgsToString(this.ctx, name, args)});`);
     }
   }
 
   handle_get(name, args) {
     // Don't need the getXXX calls for playback.
-    this.capturer.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
+    this.capturer.addData(`// gl.${name}(${glArgsToString(this.ctx, name, args)});`);
     return this.ctx[name].apply(this.ctx, args);
   }
 
   handle_skip(name, args) {
-    this.capturer.addData('// gl.' + name + '(' + glArgsToString(name, args) + ');');
+    this.capturer.addData(`// gl.${name}(${glArgsToString(this.ctx, name, args)});`);
     return this.ctx[name].apply(this.ctx, args);
   }
 }

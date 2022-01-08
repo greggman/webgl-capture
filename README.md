@@ -44,9 +44,10 @@ Copy the code to an empty HTML file, plop it in a browser and it
 should reproduce the first frame of your scene.
 
 [There's a live example here](https://greggman.github.io/webgl-capture/examples/twgl-cube.html)
-as well as [a an example of a capture here](https://greggman.github.io/webgl-capture/examples/twgl-cube-example-capture.html).
 
-** This is beta code **
+Open the JavaScript console, copy all of the HTML from the console. Paste it into a file or [some](https://jsgist.org), [javascript](https://jsfiddle.net), [site](https://codepen.io). Paste into the HTML field and run. You should get a frame.
+
+** Note: This is beta code. **  I've only used it for a few things and update it as I find new cases I need covered.
 
 Documentation
 -------------
