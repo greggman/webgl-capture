@@ -604,12 +604,8 @@ function glValueToString(ctx, functionName, numArgs, argumentIndex, value) {
         }
       }
       const values = [];
-      // We can't use `for of` here because it doesn't work on 
-      // WebGLContextAttributes
-      for (const key in value) {
-        if (value.hasOwnProperty(key)) {
-          values.push(`"${key}": ${glValueToString(ctx, "", 0, -1, value[key])}`);
-        }
+      for (const [k, v] of Object.entries(value)) {
+        values.push(`"${k}": ${glValueToString(ctx, "", 0, -1, v)}`);
       }
       return `{\n    ${values.join(",\n    ")}}`;
     }
