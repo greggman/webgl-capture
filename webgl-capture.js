@@ -643,9 +643,9 @@ function makeFunctionWrapper(apiName, original, functionName, capturer) {
   const f = original[functionName];
   return function(...args) {
     //log("call: " + functionName);
-    if (functionName === 'clear') {
-      debugger;
-    }
+    // if (functionName === 'clear') {
+    //   debugger;
+    // }
     if (capturer.capture) {
       const str = `${apiName}.${functionName}(${glArgsToString(this, functionName, args)});`;
       capturer.addData(str);
