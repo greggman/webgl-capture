@@ -145,9 +145,12 @@ function getUniformNameErrorMsg() {}
  *       1: { enums: { 0: convertClearBitsToString }},
  *     },
  *
- * numbers specifies which arguments are numbers, if an argument is negative that
+ * `numbers` specifies which arguments are numbers, if an argument is negative that
  * argument might not be a number so we can check only check for NaN
  * arrays specifies which arguments are arrays
+ * 
+ * `read` specifies which arguments are typedarrays for reading so no need
+ * to emit the content of the array.
  *
  * @type {!Object.<number, (!Object.<number, string>|function)}
  */
@@ -255,17 +258,17 @@ const glFunctionInfos = {
   },
   'getBufferParameter': {2: { enums: [0, 1] }},
   'getBufferSubData': {
-    3: { enums: [0], numbers: [1] },  // WebGL2
-    4: { enums: [0], numbers: [1, 3] },  // WebGL2
-    5: { enums: [0], numbers: [1, 3, 4] },  // WebGL2
+    3: { enums: [0], numbers: [1], read: [2] },  // WebGL2
+    4: { enums: [0], numbers: [1, 3], read: [2], },  // WebGL2
+    5: { enums: [0], numbers: [1, 3, 4], read: [2], },  // WebGL2
   },
 
   // Renderbuffers and framebuffers
 
   'pixelStorei': {2: { enums: [0, 1], numbers: [1] }},
   'readPixels': {
-    7: { enums: [4, 5], numbers: [0, 1, 2, 3, -6] },
-    8: { enums: [4, 5], numbers: [0, 1, 2, 3, 7] },  // WebGL2
+    7: { enums: [4, 5], numbers: [0, 1, 2, 3, -6], read: [6] },
+    8: { enums: [4, 5], numbers: [0, 1, 2, 3, 7], read: [6] },  // WebGL2
   },
   'bindRenderbuffer': {2: { enums: [0] }},
   'bindFramebuffer': {2: { enums: [0] }},
@@ -521,6 +524,7 @@ for (const [name, fnInfos] of Object.entries(glFunctionInfos)) {
     convertToObjectIfArray(fnInfo, 'enums');
     convertToObjectIfArray(fnInfo, 'numbers');
     convertToObjectIfArray(fnInfo, 'arrays');
+    convertToObjectIfArray(fnInfo, 'read');
   }
   if (/uniform(\d|Matrix)/.test(name)) {
     fnInfos.errorHelper = getUniformNameErrorMsg;
@@ -552,28 +556,34 @@ const crRE = /\r/g;
 const quoteRE = /"/g;
 
 function glValueToString(ctx, functionName, numArgs, argumentIndex, value) {
+  const funcInfos = glFunctionInfos[functionName];
+  const funcInfo = funcInfos ? funcInfos[numArgs] : undefined;
   if (value === undefined) {
     return 'undefined';
   } else if (value === null) {
     return 'null';
   } else if (typeof (value) === 'number') {
-    const funcInfos = glFunctionInfos[functionName];
-    if (funcInfos !== undefined) {
-      const funcInfo = funcInfos[numArgs];
-      if (funcInfo !== undefined) {
-        if (funcInfo.enums) {
-          const entry = funcInfo.enums[argumentIndex];
-          if (typeof entry === 'function') {
-            return entry(ctx, value)
-          } else if (entry !== undefined) {
-            return glEnums[value];
-          }
+    if (funcInfo !== undefined) {
+      if (funcInfo.enums) {
+        const entry = funcInfo.enums[argumentIndex];
+        if (typeof entry === 'function') {
+          return entry(ctx, value)
+        } else if (entry !== undefined) {
+          return glEnums[value];
         }
       }
     }
   } else if (typeof (value) === 'string') {
     return JSON.stringify(value);
   } else if (value.length !== undefined) {
+    if (funcInfo && funcInfo.read && funcInfo.read[argumentIndex]) {
+      for (let ii = 0; ii < typedArrays.length; ++ii) {
+        const type = typedArrays[ii];
+        if (value instanceof type.ctor) {
+          return `new ${type.name}(${value.length})`;
+        }
+      }
+    }
     const values = [];
     const step = 32;
     for (let jj = 0; jj < value.length; jj += step) {
